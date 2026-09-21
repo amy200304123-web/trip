@@ -3,6 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="小姜，要不要跟我出去玩～ 一個小小的旅行邀請。">
+  <meta property="og:title" content="小姜，要不要跟我出去玩～">
+  <meta property="og:description" content="你選，我來安排 ❤️">
+  <meta property="og:type" content="website">
 <title>小姜，要不要跟我出去玩~</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -541,7 +545,7 @@ function renderDay(i) {
   });
   html += '</ol>';
   if (DAYS.length > 1) html += '<p class="hint">' + esc(trip.drive) + '</p>';
-  html += '<button class="primary" type="button" id="next' + i + '" disabled>' + (isLast ? "行程確定！❤️" : "看第二天 →") + '</button>';
+  html += '<button class="primary" type="button" id="next' + i + '" disabled>' + (isLast ? "送出我的選擇 💌" : "看第二天 →") + '</button>';
   host.innerHTML = html;
   host.setAttribute("aria-labelledby", "dt" + i);
 
@@ -553,9 +557,11 @@ function renderDay(i) {
   };
   host.addEventListener("change", check);
   check();
-  btn.addEventListener("click", () => {
-    if (isLast) { buildFinal(); show(6); petals(); }
-    else show(i + 5);
+  btn.addEventListener("click", async () => {
+    if (isLast) {
+      const sent = await sendTripResult(btn);
+      if (sent) { buildFinal(); show(6); petals(); }
+    } else show(i + 5);
   });
 }
 
@@ -603,6 +609,69 @@ function petals() {
     p.setAttribute("aria-hidden", "true");
     document.body.appendChild(p);
     setTimeout(() => p.remove(), 8000);
+  }
+}
+
+
+/* ---- send trip choices by email ---- */
+async function sendTripResult(btn) {
+  const labels = dayLabels(), trip = TRIPS[DEST];
+  const lines = [];
+
+  lines.push("小姜已完成旅行選擇！");
+  lines.push("");
+  lines.push("天數：" + (DAYS.length > 1 ? "兩天一夜" : "一日遊"));
+  lines.push("地點：" + trip.label);
+  lines.push("日期：" + labels.join(" → "));
+  lines.push("");
+
+  DAYS.forEach((day, i) => {
+    lines.push(day.title + "｜" + labels[i]);
+    day.slots.forEach((s) => {
+      const p = s.key ? pickOf(s.key) : "";
+      lines.push(s.when + "　" + s.name + (p ? "：" + p : ""));
+    });
+    lines.push("");
+  });
+
+  const message = lines.join("\n");
+
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "送出中… 💌";
+
+  try {
+    const response = await fetch("https://formsubmit.co/ajax/amy200304123@gmail.com", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({
+        _subject: "🌸 小姜的旅行選擇",
+        name: TO_NAME,
+        destination: trip.label,
+        days: DAYS.length > 1 ? "兩天一夜" : "一日遊",
+        date: labels.join(" → "),
+        message: message
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || result.success === false) {
+      throw new Error("submission failed");
+    }
+
+    btn.textContent = "已送出！❤️";
+    btn.disabled = true;
+    return true;
+  } catch (err) {
+    console.error(err);
+    btn.disabled = false;
+    btn.textContent = originalText;
+    alert("送出失敗，請稍後再試一次。");
+    return false;
   }
 }
 
